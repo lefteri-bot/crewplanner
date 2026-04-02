@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Schelle Crew — Ploeg kiezen</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#0b1220" />
+  <link rel="apple-touch-icon" href="/icons/icon-180.png" />
+  <link rel="icon" href="/icons/favicon-32.png" type="image/png" />
+  <link rel="icon" href="/logo.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css?v=20.65" />
+  <link rel="stylesheet" href="pools.css?v=20.65" />
+  <style>
+    /* Extra clean mobile layout */
+    body { background: var(--bg); }
+    .crewWrap{ max-width: 760px; margin: 0 auto; padding: 16px; }
+    .crewHeader{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+    .crewHeader .h1{ font-weight: 900; font-size: 18px; }
+    .crewCard{ background: var(--card); border: 1px solid rgba(255,255,255,.08); border-radius: 16px; padding: 14px; box-shadow: 0 12px 26px rgba(0,0,0,.25); }
+    .bigCode{ font-size: 28px; letter-spacing: 6px; font-weight: 900; text-align:center; padding: 10px 0; }
+    .teamGrid{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .teamBtn{ padding: 14px; border-radius: 16px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); color: var(--text); font-weight: 900; font-size: 16px; }
+    .teamBtn:active{ transform: scale(.99); }
+    .teamBtn.selected{ border-color: rgba(255,255,255,.35); background: rgba(255,255,255,.08); }
+    .crewRow{ display:flex; gap:10px; align-items:center; }
+    .crewRow input{ flex:1; }
+    .mini{ font-size: 12px; color: var(--muted); }
+    .taskMini{ margin-top: 12px; }
+    .taskMini .item{ padding: 10px; }
+    .taskMini .street{ font-size: 14px; }
+    .taskMini .actions button{ padding: 8px 10px; }
+
+    .noteBox{ margin-top: 10px; }
+    .noteBox textarea{ width:100%; min-height:72px; resize:vertical; }
+    .noteMeta{ font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+    .noteItem{ border:1px solid var(--line); border-radius:12px; padding:8px 10px; background:rgba(13,22,42,.55); }
+
+    .lockBtn{ width:34px; height:34px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); color: var(--text); font-weight:900; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+    .lockBtn:active{ transform: scale(.98); }
+  </style>
+</head>
+<body>
+  <div id="splash" class="splash" aria-hidden="true">
+    <div class="box">
+      <img class="logo" src="/logo.svg" alt="Schelle Crew Planner" />
+      <div class="t1">Schelle Crew Planner</div>
+      <div class="t2">Crew wordt geladen…</div>
+    </div>
+  </div>
+
+  <div class="crewWrap">
+    <div class="crewHeader">
+      <div>
+        <div class="h1">Crew — Ploeg kiezen</div>
+        <div class="mini" id="crewSub">—</div>
+      </div>
+      </div>
+
+    <div class="crewCard" id="pairCard">
+      <div style="font-weight:900;margin-bottom:6px">Koppel je gsm (1x)</div>
+      <div class="mini" style="margin-bottom:10px">Vraag aan de beheerder je 6-cijferige code.</div>
+      <div class="crewRow">
+        <input id="pairCode" placeholder="Code (bv. 123456)" inputmode="numeric" />
+        <button id="pairBtn" class="btn">Koppel</button>
+      </div>
+      <div class="mini" id="pairHint" style="margin-top:10px">Tip: na koppelen onthoudt je gsm dit automatisch.</div>
+    </div>
+
+    <div class="crewCard" id="mainCard" style="display:none">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px">
+        <div style="font-weight:900">Jij</div>
+        </div>
+      <div class="mini" id="meLine">—</div>
+
+      <div style="height:10px"></div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+  <div style="font-weight:900">Ploeg</div>
+  <button id="teamSwitchBtn" class="tinybtn">🔒 Wijzig ploeg</button>
+</div>
+      <div class="mini" id="teamHint">Ploeg is vergrendeld om vergissingen te voorkomen.</div>
+    <div class="mini" id="teamInfo"></div>
+      <div class="teamGrid" id="teamGrid"></div>
+
+      <div class="sep"></div>
+
+      <div style="font-weight:900">Actieve taak</div>
+      <div id="activeBox" class="activeTask" style="margin-top:8px">—</div>
+
+      <div class="sep"></div>
+
+      <div class="sep"></div>
+
+      <div style="font-weight:900">Taken</div>
+      <div class="mini">Je ziet vrije taken en jouw actieve taak.</div>
+      <div id="crewTasks" class="list taskMini"></div>
+      <div class="sep"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <div style="font-weight:900">Ploegbaas</div>
+        <button id="foremanToggle" class="tinybtn">👷 Code</button>
+      </div>
+      <div id="foremanWrap" style="display:none; margin-top:8px">
+        <div class="mini" id="foremanStatus">Niet actief.</div>
+        <div class="crewRow" style="margin-top:8px">
+          <input id="foremanCode" placeholder="Ploegbaas code" inputmode="numeric" />
+          <button id="foremanSave" class="btn">Activeer</button>
+        </div>
+        <div id="foremanNewTask" style="display:none; margin-top:10px">
+          <div class="mini">Nieuwe taak toevoegen</div>
+          <div class="crewRow" style="margin-top:8px">
+            <input id="fmStreet" placeholder="Straat" />
+          </div>
+          <div class="crewRow" style="margin-top:8px">
+            <input id="fmDesc" placeholder="Beschrijving (optioneel)" />
+          </div>
+          <div class="crewRow" style="margin-top:8px">
+            <select id="fmImposeTeam" style="flex:1">
+              <option value="">Vrij (niet opleggen)</option>
+              <option value="GROEN1">Opleggen: Groen 1</option>
+              <option value="GROEN2">Opleggen: Groen 2</option>
+              <option value="GROEN3">Opleggen: Groen 3</option>
+              <option value="GROEN4">Opleggen: Groen 4</option>
+            </select>
+          </div>
+          <div class="crewRow" style="margin-top:8px">
+            <select id="fmPrio" style="flex:1">
+              <option value="GREEN">Groen</option>
+              <option value="YELLOW">Geel</option>
+              <option value="RED">Rood</option>
+            </select>
+            <button id="fmAdd" class="btn">Toevoegen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="crew.js?v=20.65"></script>
+  <script src="pools-common.js?v=20.65"></script>
+  <script src="crew-pools.js?v=20.65"></script>
+  <script src="pwa.js?v=20.65"></script>
+</body>
+</html>

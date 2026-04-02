@@ -1,0 +1,38 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Schelle (placeholder boundary)"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              4.305,
+              51.105
+            ],
+            [
+              4.385,
+              51.105
+            ],
+            [
+              4.385,
+              51.15
+            ],
+            [
+              4.305,
+              51.15
+            ],
+            [
+              4.305,
+              51.105
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

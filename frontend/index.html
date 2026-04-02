@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script>
+  (() => {
+    const ua = (navigator.userAgent || "").toLowerCase();
+    const isMobile = /(android|iphone|ipad|ipod|mobi)/.test(ua);
+    const hasDevice = !!localStorage.getItem("sc_deviceId");
+
+    // On phones/tablets: ALWAYS use the crew UI (no admin UI on GSM).
+    if (isMobile) {
+      try { localStorage.removeItem("sc_forceAdmin"); } catch(e) {}
+      if (location.pathname !== "/crew") location.replace("/crew");
+      return;
+    }
+
+    // Desktop: admin UI by default unless user forces crew.
+    const qs = new URLSearchParams(location.search);
+    const isAdmin = qs.get("admin") === "1" || localStorage.getItem("sc_forceAdmin") === "1";
+    if (isAdmin) return;
+
+    // If this desktop device has been paired, you can still open crew UI at /crew manually.
+    if (hasDevice) return;
+  })();
+</script>
+  <title>Schelle Crew Planner</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#0b1220" />
+  <link rel="apple-touch-icon" href="/icons/icon-180.png" />
+  <link rel="icon" href="/icons/favicon-32.png" type="image/png" />
+  <link rel="icon" href="/logo.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css?v=20.65" />
+  <link rel="stylesheet" href="pools.css?v=20.65" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+</head>
+<body>
+  <div id="splash" class="splash" aria-hidden="true">
+    <div class="box">
+      <img class="logo" src="/logo.svg" alt="Schelle Crew Planner" />
+      <div class="t1">Schelle Crew Planner</div>
+      <div class="t2">Aan het starten…</div>
+    </div>
+  </div>
+  <header class="topbar">
+    <div class="brand">
+      <div class="dot"></div>
+      <div>
+        <div class="title">Schelle Crew Planner</div>
+        <div class="subtitle">MVP v20.42 • takenlijst • Schelle-only kaart • max 1 actieve taak per ploeg</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <label>
+        Datum
+        <input id="date" type="date" />
+      </label>
+
+      <label>
+        Status
+        <select id="status">
+          <option value="open">Open</option>
+          <option value="done">Klaar</option>
+          <option value="all">Alles</option>
+        </select>
+      </label>
+
+      <label>
+        Rol
+        <select id="role">
+          <option value="crew">Crew</option>
+          <option value="admin">Admin</option>
+        </select>
+      </label>
+
+      <label>
+        Ploeg
+        <select id="team">
+          <option value="GROEN1">Ploeg 1</option>
+          <option value="GROEN2">Ploeg 2</option>
+          <option value="GROEN3">Ploeg 3</option>
+          <option value="GROEN4">Ploeg 4</option>
+        </select>
+      </label>
+
+      <label>
+        UserId
+        <input id="userId" type="text" value="lefteri" />
+      </label>
+
+      <label id="adminKeyWrap">
+        Admin PIN
+        <input id="adminKey" type="password" placeholder="PIN" />
+      </label>
+
+      <button id="newTaskToggle" class="btn">Nieuwe taak</button>
+      <span id="whoami" class="hint" style="margin-left:8px">—</span>
+      <span id="adminMismatch" class="hint hidden" style="margin-left:8px;color:var(--warn)">PIN fout of ADMIN_KEY anders</span>
+      <button id="resetLayout" class="btn">Reset layout</button>
+      <button id="undoTeams" class="btn" title="Laatste ploegactie ongedaan maken">Undo</button>
+      <button id="refresh" class="btn">Vernieuwen</button>
+    </div>
+  </header>
+
+  <main class="board" id="board">
+  <div class="boardTop">
+    <div class="hint">Sleep widgets via de ⋮⋮-greep (op PC). Op gsm/tablet kan drag &amp; drop soms niet werken.</div>
+    <div class="row" style="gap:10px">
+      <button id="resetWidgets" class="btn">Reset widgets</button>
+    </div>
+  </div>
+
+  <div class="columns" id="columns">
+    <div class="column" data-col="1" id="col1">
+      <div class="card widget" data-wid="activeTask">
+        <div class="cardTitle row"><span>Actieve taken (ploegen)</span><span class="dragHandle" title="Sleep">⋮⋮</span></div>
+        <div id="activeTask" class="activeTask">—</div>
+      </div>
+
+      <div class="card widget" data-wid="planning">
+        <div class="cardTitle row">
+          <span>Dagplanning</span>
+          <div class="row" style="gap:8px">
+            <button id="randomTeams" class="btn small">Random ploegen</button>
+            <span class="dragHandle" title="Sleep">⋮⋮</span>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:-6px;margin-bottom:10px">
+          Vink aanwezig aan, bouw ploegen (2–4), kies max 2 voertuigen per ploeg.
+          <br/>Namen toevoegen/verwijderen = dropdown + knop, of klik ×. (Sleepen werkt niet op elke gsm.)
+        </div>
+
+        <div class="plannerGrid">
+          <div>
+            <div class="subTitle">Aanwezig</div>
+            <div id="attendanceList" class="attendance"></div>
+          </div>
+          <div>
+            <div class="subTitle">Ploegen</div>
+            <div id="teamAdminTools" class="row" style="gap:8px; margin: 6px 0 10px 0"></div>
+            <div id="teams" class="teams"></div>
+          </div>
+        </div>
+        
+      </div>
+
+      <div class="card widget hidden" data-wid="employeesAdmin" id="employeeAdminCard">
+        <div class="cardTitle row"><span>Medewerkersbeheer (admin)</span><span class="dragHandle" title="Sleep">⋮⋮</span></div>
+        <div class="newTaskRow" style="grid-template-columns:1fr auto; margin-bottom:8px">
+          <input id="newEmployee" placeholder="Naam medewerker"/>
+          <button id="addEmployee" class="btn">Voeg toe</button>
+        </div>
+        <div id="employeeList" class="vehicleList" style="max-height:220px; overflow:auto"></div>
+      </div>
+
+      <div class="card widget hidden" data-wid="devicesAdmin" id="deviceLinksCard">
+        <div class="cardTitle row">
+          <span>Gekoppelde gsm's (admin)</span>
+          <div class="row" style="gap:8px">
+            <button id="reloadLinks" class="btn small">Refresh</button>
+            <span class="dragHandle" title="Sleep">⋮⋮</span>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:-4px; margin-bottom:8px">Crew kan niet ontkoppelen. Alleen admin.</div>
+        <div id="deviceLinksList" class="vehicleList" style="max-height:220px; overflow:auto"></div>
+      </div>
+
+      <div class="card widget hidden" data-wid="foremenAdmin" id="foremanAdminCard">
+        <div class="cardTitle row"><span>Ploegbazen (admin)</span><span class="dragHandle" title="Sleep">⋮⋮</span></div>
+        <div class="hint" style="margin-top:-4px; margin-bottom:8px">Elke ploegbaas krijgt een eigen code om nieuwe taken te zetten (en eventueel op te leggen).</div>
+        <div class="newTaskRow" style="grid-template-columns:1fr 1fr auto; margin-bottom:8px">
+          <input id="newForemanName" placeholder="Naam ploegbaas"/>
+          <input id="newForemanCode" placeholder="Code (bv. 6 cijfers)" inputmode="numeric"/>
+          <button id="addForeman" class="btn">Voeg toe</button>
+        </div>
+        <div id="foremanList" class="vehicleList" style="max-height:220px; overflow:auto"></div>
+      </div>
+
+      <div class="card widget hidden" data-wid="newTask" id="newTaskCard">
+        <div class="cardTitle row"><span>Nieuwe taak</span><span class="dragHandle" title="Sleep">⋮⋮</span></div>
+        <div class="newTaskRow">
+          <input id="newStreet" placeholder="bv. Kapellenstraat" />
+          <input id="newDesc" placeholder="bv. snoeien, opruimen..." />
+          <select id="newPrio">
+            <option value="GREEN">Groen</option>
+            <option value="YELLOW">Geel</option>
+            <option value="RED">Rood</option>
+          </select>
+          <button id="addTask" class="btn">Toevoegen</button>
+        </div>
+      </div>
+
+      <div class="card widget hidden" data-wid="vehicles" id="vehicleAdminCard">
+        <div class="cardTitle row"><span>Voertuigenbeheer (admin)</span><span class="dragHandle" title="Sleep">⋮⋮</span></div>
+        <div class="newTaskRow" style="grid-template-columns:1fr auto; margin-bottom:10px">
+          <input id="newVehicle" placeholder="bv. Camionette 1 / Tractor / ..."/>
+          <button id="addVehicle" class="btn">Voeg toe</button>
+        </div>
+        <div id="vehicleList" class="vehicleList"></div>
+      </div>
+
+      <div class="card widget hidden" data-wid="library" id="libraryAdminCard">
+        <div class="cardTitle row">
+          <span>Opdrachtenlijst (admin)</span>
+          <div class="row" style="gap:8px">
+            <button id="reloadLibrary" class="btn small">Refresh</button>
+            <span class="dragHandle" title="Sleep">⋮⋮</span>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:-6px;margin-bottom:10px">Bewaar straat-opdrachten om later opnieuw vrij te geven.</div>
+        <div id="libraryList" class="vehicleList"></div>
+      </div>
+
+
+      <div class="card widget" data-wid="tasks">
+        <div class="cardTitle row"><span>Takenlijst</span><span class="dragHandle" title="Sleep">⋮⋮</span></div>
+        <div id="list" class="list"></div>
+      </div>
+    </div>
+
+    <div class="column" data-col="2" id="col2">
+
+      <div class="card widget hidden" data-wid="history" id="historyCard">
+        <div class="cardTitle row">
+          <span>Taken van de dag (admin)</span>
+          <div class="row" style="gap:8px">
+            <button id="reloadHistory" class="btn small">Refresh</button>
+            <button id="historyExcel" class="btn small">Excel</button>
+            <span class="dragHandle" title="Sleep">⋮⋮</span>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:-6px;margin-bottom:10px">Zie per dag alleen de uitgevoerde of lopende taken, met ploeg, mensen, wagens, start en einde.</div>
+        <div id="historyView" class="historyView"></div>
+      </div>
+
+      <div class="card widget" data-wid="map" id="mapCard">
+        <div class="cardTitle row">
+          <span>Kaart — Schelle</span>
+          <div class="row" style="gap:8px">
+            <button id="toggleMap" class="btn small">Toon/verberg</button>
+            <span class="dragHandle" title="Sleep">⋮⋮</span>
+          </div>
+        </div>
+        <div id="map"></div>
+        <div class="mapHint">Tip: kaart verzetten? Klik de legende (Ploeg 1/2/3/4) of “Toon op kaart” in taakdetail.</div>
+        <div id="mapLegend" class="legend"></div>
+      </div>
+    </div>
+
+    <div class="column" data-col="3" id="col3">
+      <div class="card widget" data-wid="detail">
+        <div class="cardTitle row"><span>Taakdetail</span><span class="dragHandle" title="Sleep">⋮⋮</span></div>
+        <div id="detail" class="detail">Klik links op een taak.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="app.js?v=20.65"></script>
+  <script src="pools-common.js?v=20.53"></script>
+  <script src="pools-admin.js?v=20.53"></script>
+  <script src="pwa.js?v=20.65"></script>
+</body>
+</html>
